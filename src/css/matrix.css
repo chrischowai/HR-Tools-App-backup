@@ -1,0 +1,200 @@
+/* Matrix Animation Styles */
+@import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap');
+
+:root {
+    --matrix-green: #00d4ff;
+    --matrix-light-green: #40e0ff;
+    --matrix-dark-green: #003d66;
+    --matrix-darker-green: #001a33;
+    --matrix-green: #00ff41;
+    --matrix-black: #000000;
+}
+
+/* Matrix Container */
+#matrix-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: 1;
+    background: linear-gradient(180deg, #001a33 0%, #003d66 30%, #00264d 70%, #000d1a 100%);
+}
+
+/* Matrix Column */
+.matrix-column {
+    position: absolute;
+    top: 0;
+    width: 15px;
+    height: 100%;
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: normal;
+    line-height: 16px;
+    white-space: nowrap;
+    overflow: visible;
+    z-index: 2;
+}
+
+/* Matrix Character */
+.matrix-char {
+    display: block;
+    color: var(--matrix-green);
+    text-shadow: 0 0 3px var(--matrix-green);
+    opacity: 1;
+    animation: matrix-fade 4s linear infinite;
+}
+
+.matrix-char.bright {
+    color: var(--matrix-light-green);
+    text-shadow: 0 0 6px var(--matrix-light-green), 0 0 12px var(--matrix-green);
+    opacity: 1;
+}
+
+.matrix-char.dim {
+    color: var(--matrix-dark-green);
+    opacity: 0.2;
+}
+
+.matrix-char.darker {
+    color: var(--matrix-darker-green);
+    opacity: 0.1;
+}
+
+/* Animations */
+@keyframes matrix-fall {
+    0% {
+        transform: translateY(-100vh);
+    }
+    100% {
+        transform: translateY(100vh);
+    }
+}
+
+@keyframes matrix-fade {
+    0% {
+        opacity: 1;
+        color: var(--matrix-light-green);
+        text-shadow: 0 0 8px var(--matrix-light-green);
+    }
+    25% {
+        opacity: 0.9;
+        color: var(--matrix-green);
+        text-shadow: 0 0 4px var(--matrix-green);
+    }
+    75% {
+        opacity: 0.4;
+        color: var(--matrix-dark-green);
+        text-shadow: 0 0 2px var(--matrix-dark-green);
+    }
+    100% {
+        opacity: 0.1;
+        color: var(--matrix-darker-green);
+        text-shadow: none;
+    }
+}
+
+@keyframes glow {
+    0% {
+        box-shadow: 0 0 20px var(--matrix-green);
+        border-color: var(--matrix-green);
+    }
+    100% {
+        box-shadow: 0 0 40px var(--matrix-light-green), 0 0 60px var(--matrix-green);
+        border-color: var(--matrix-light-green);
+    }
+}
+
+/* Custom scrollbar for matrix theme */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--matrix-black);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--matrix-green);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--matrix-light-green);
+}
+
+/* Login form enhancements */
+.matrix-input:focus {
+    animation: glow 2s ease-in-out infinite alternate;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .matrix-column {
+        width: 12px;
+        font-size: 11px;
+        line-height: 15px;
+    }
+    
+    .matrix-char {
+        font-size: 11px;
+    }
+}
+
+@media (max-width: 480px) {
+    .matrix-column {
+        width: 10px;
+        font-size: 9px;
+        line-height: 13px;
+    }
+    
+    .matrix-char {
+        font-size: 9px;
+    }
+}
+
+/* High contrast mode for accessibility */
+@media (prefers-contrast: high) {
+    .matrix-char {
+        color: #ffffff;
+        text-shadow: 0 0 3px #ffffff;
+    }
+    
+    .matrix-char.bright {
+        color: #ffffff;
+        text-shadow: 0 0 5px #ffffff;
+    }
+}
+
+/* Reduced motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    .matrix-column {
+        animation: none;
+    }
+    
+    .matrix-char {
+        animation: none;
+        opacity: 0.6;
+    }
+}
+
+/* Custom loading spinner */
+.matrix-spinner {
+    border-top-color: var(--matrix-green);
+    animation: matrix-spin 1s linear infinite;
+}
+
+@keyframes matrix-spin {
+    0% {
+        transform: rotate(0deg);
+        box-shadow: 0 0 10px var(--matrix-green);
+    }
+    50% {
+        box-shadow: 0 0 20px var(--matrix-light-green);
+    }
+    100% {
+        transform: rotate(360deg);
+        box-shadow: 0 0 10px var(--matrix-green);
+    }
+}
