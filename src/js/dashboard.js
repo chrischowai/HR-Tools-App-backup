@@ -194,20 +194,9 @@ class DashboardManager {
     }
     
     setupDemoMode() {
-        // Check if we're in demo mode
-        const isDemoMode = localStorage.getItem('demo_mode') === 'true';
-        
-        if (isDemoMode) {
-            // Add demo banner
-            const demoBanner = document.createElement('div');
-            demoBanner.className = 'bg-yellow-500/90 text-yellow-900 text-center py-2 px-4 text-sm font-medium';
-            demoBanner.innerHTML = `
-                <i class="fas fa-flask mr-2"></i>
-                Demo Mode - All tools are functional for demonstration purposes
-            `;
-            
-            document.body.insertBefore(demoBanner, document.body.firstChild);
-        }
+        // Demo mode disabled in production
+        // This method is kept for compatibility but no longer shows demo banners
+        console.log('HR Tools Portal running in production mode');
     }
 }
 
@@ -289,16 +278,8 @@ const FEATURE_FLAGS = {
     wellnessAdvisor: false
 };
 
-// Enable demo mode for testing
-function enableDemoMode() {
-    localStorage.setItem('demo_mode', 'true');
-    window.location.reload();
-}
-
-function disableDemoMode() {
-    localStorage.removeItem('demo_mode');
-    window.location.reload();
-}
+// Demo mode functions removed for production
+// These functions are no longer available in production mode
 
 // Initialize dashboard when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {

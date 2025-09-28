@@ -1,9 +1,9 @@
 // Supabase Client Configuration
 class SupabaseClient {
     constructor() {
-        // These should be set from environment variables in production
-        this.supabaseUrl = 'YOUR_SUPABASE_URL'; // Replace with your Supabase URL
-        this.supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY'; // Replace with your Supabase anon key
+        // Production Supabase configuration
+        this.supabaseUrl = 'https://wvtojojfwkryzixshczr.supabase.co';
+        this.supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2dG9qb2pmd2tyeXppeHNoY3pyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0NzMxNjcsImV4cCI6MjA3MzA0OTE2N30.8eQ8YMRn2uYfF_PprMeRoIBDxpGaiCjvyWHKmmuepco';
         
         // Initialize client would typically use the Supabase SDK
         // For this example, we'll simulate the API calls
@@ -12,7 +12,8 @@ class SupabaseClient {
     
     async validateLogin(username, password) {
         try {
-            const response = await fetch(`${this.baseUrl}/validate-login`, {
+            // Use the production Edge function endpoint
+            const response = await fetch(`${this.baseUrl}/validate-login-HR-TOOLS`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -20,7 +21,7 @@ class SupabaseClient {
                     'apikey': this.supabaseAnonKey
                 },
                 body: JSON.stringify({
-                    username: username,
+                    loginName: username,
                     password: password
                 })
             });
@@ -30,7 +31,22 @@ class SupabaseClient {
             }
             
             const data = await response.json();
-            return data;
+            
+            // Handle Edge function response format
+            if (data.valid || data.success) {
+                return {
+                    success: true,
+                    user: data.user || {
+                        username: username,
+                        loginTime: new Date().toISOString()
+                    }
+                };
+            } else {
+                return {
+                    success: false,
+                    error: data.message || data.error || 'Authentication failed'
+                };
+            }
         } catch (error) {
             console.error('Login validation error:', error);
             throw new Error('Authentication service unavailable');

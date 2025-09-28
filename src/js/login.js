@@ -200,39 +200,10 @@ document.addEventListener('DOMContentLoaded', () => {
     window.loginHandler = new LoginHandler();
 });
 
-// Demo mode for testing (remove in production)
-const DEMO_MODE = true; // Set to true for testing without Supabase
+// Production mode - demo authentication disabled
+const DEMO_MODE = false;
 
+// Production authentication uses Supabase Edge function
 if (DEMO_MODE) {
-    // Override the validateLogin method for demo purposes
-    window.supabaseClient.validateLogin = async (username, password) => {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Demo credentials
-        const demoUsers = [
-            { username: 'demo', password: 'demo123' },
-            { username: 'admin', password: 'admin123' },
-            { username: 'hr', password: 'hr123' }
-        ];
-        
-        const user = demoUsers.find(u => u.username === username && u.password === password);
-        
-        if (user) {
-            return {
-                success: true,
-                user: {
-                    username: username,
-                    loginTime: new Date().toISOString()
-                }
-            };
-        } else {
-            return {
-                success: false,
-                error: 'Invalid username or password'
-            };
-        }
-    };
-    
-    console.log('Demo mode enabled. Use demo/demo123, admin/admin123, or hr/hr123 to login.');
+    console.warn('Demo mode is disabled in production');
 }
