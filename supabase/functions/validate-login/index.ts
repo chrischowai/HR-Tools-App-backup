@@ -1,166 +1,212 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { SignJWT } from "https://deno.land/x/jose@v5.9.6/index.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      headers: corsHeaders
+    });
   }
 
   try {
-    const { username, password } = await req.json()
+    // 1. 解析請求 body
+    const { loginName, password } = await req.json();
 
-    // Validate input
-    if (!username || !password) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Username and password are required' 
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
-        },
-      )
-    }
-
-    // Get environment variables
-    const GOOGLE_SHEETS_API_KEY = Deno.env.get('GOOGLE_SHEETS_API_KEY')
-    const GOOGLE_SHEET_ID = Deno.env.get('GOOGLE_SHEET_ID')
-    const SHEET_RANGE = 'Sheet1!A:C' // Adjust range as needed
-
-    if (!GOOGLE_SHEETS_API_KEY || !GOOGLE_SHEET_ID) {
-      console.error('Missing Google Sheets configuration')
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Authentication service configuration error' 
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500,
-        },
-      )
-    }
-
-    // Fetch data from Google Sheets
-    const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${SHEET_RANGE}?key=${GOOGLE_SHEETS_API_KEY}`
-    
-    console.log('Fetching from Google Sheets...')
-    const sheetsResponse = await fetch(sheetsUrl)
-    
-    if (!sheetsResponse.ok) {
-      console.error('Google Sheets API error:', sheetsResponse.status, sheetsResponse.statusText)
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Unable to access user database' 
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500,
-        },
-      )
-    }
-
-    const sheetsData = await sheetsResponse.json()
-    console.log('Google Sheets response:', sheetsData)
-
-    // Check if we have data
-    if (!sheetsData.values || sheetsData.values.length === 0) {
-      console.error('No data found in Google Sheets')
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'User database is empty' 
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500,
-        },
-      )
-    }
-
-    const rows = sheetsData.values
-    const headers = rows[0] // Assume first row contains headers
-    
-    // Find the column indices for login name and password
-    const loginNameIndex = headers.findIndex((header: string) => 
-      header.toLowerCase().includes('login') && header.toLowerCase().includes('name')
-    )
-    const passwordIndex = headers.findIndex((header: string) => 
-      header.toLowerCase().includes('password')
-    )
-
-    if (loginNameIndex === -1 || passwordIndex === -1) {
-      console.error('Required columns not found in Google Sheets')
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'User database schema error' 
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500,
-        },
-      )
-    }
-
-    // Check credentials against each row (skip header row)
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i]
-      const storedUsername = row[loginNameIndex]
-      const storedPassword = row[passwordIndex]
-
-      if (storedUsername === username && storedPassword === password) {
-        // Login successful
-        const userData = {
-          username: username,
-          loginTime: new Date().toISOString(),
-          // Add any other user data from the sheet if needed
+    // 2. 讀 env 取 Base64 字串
+    const keyB64 = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_KEY_BASE64_HR_TOOLS");
+    if (!keyB64) {
+      console.error("Missing env: GOOGLE_SERVICE_ACCOUNT_KEY_BASE64_HR_TOOLS");
+      return new Response(JSON.stringify({
+        error: "Service Account configuration error"
+      }), {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
         }
+      });
+    }
 
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            message: 'Login successful',
-            user: userData
-          }),
-          {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200,
-          },
-        )
+    // 3. Base64 → 字串，移除 BOM 並 trim
+    let jsonStr = atob(keyB64).trim();
+    if (jsonStr.charCodeAt(0) === 0xFEFF) {
+      jsonStr = jsonStr.slice(1);
+    }
+
+    let sa;
+    try {
+      sa = JSON.parse(jsonStr);
+    } catch (e) {
+      console.error("Invalid Service Account JSON:", e, jsonStr.slice(0, 50));
+      return new Response(JSON.stringify({
+        error: "Invalid Service Account key format"
+      }), {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
+    }
+
+    // 4. PEM → DER，importKey
+    const pem = sa.private_key.replace(/\\n/g, "\n");
+    const pemBody = pem.replace("-----BEGIN PRIVATE KEY-----\n", "").replace("\n-----END PRIVATE KEY-----", "");
+    const der = Uint8Array.from(atob(pemBody), (c) => c.charCodeAt(0)).buffer;
+
+    let accessToken;
+    try {
+      const privateKey = await crypto.subtle.importKey("pkcs8", der, {
+        name: "RSASSA-PKCS1-v1_5",
+        hash: "SHA-256"
+      }, false, [
+        "sign"
+      ]);
+
+      // 5. 建 JWT 並換取 access_token
+      const now = Math.floor(Date.now() / 1000);
+      const jwt = await new SignJWT({
+        iss: sa.client_email,
+        scope: "https://www.googleapis.com/auth/spreadsheets.readonly",
+        aud: sa.token_uri,
+        exp: now + 3600,
+        iat: now
+      }).setProtectedHeader({
+        alg: "RS256",
+        typ: "JWT"
+      }).sign(privateKey);
+
+      const tokenResp = await fetch(sa.token_uri, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+          grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+          assertion: jwt
+        })
+      });
+
+      if (!tokenResp.ok) {
+        const txt = await tokenResp.text();
+        console.error("Token request failed:", tokenResp.status, txt);
+        throw new Error("Token exchange failed");
+      }
+
+      accessToken = (await tokenResp.json()).access_token;
+    } catch (e) {
+      console.error("Auth error:", e);
+      return new Response(JSON.stringify({
+        error: "Service Account auth failed"
+      }), {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
+    }
+
+    // 6. 呼叫 Sheets API
+    const sheetId = "1VNg2B5XpnGPQKBZ1S9_uvq5MmHyrwqp0Ist65WQ8NAU";
+    const sheetUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1`;
+    const resp = await fetch(sheetUrl, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    });
+
+    if (!resp.ok) {
+      const txt = await resp.text();
+      console.error("Sheets API error:", resp.status, txt);
+      return new Response(JSON.stringify({
+        error: resp.status === 403 ? "Access denied. Confirm SA has sheet access & API enabled." : "Failed to fetch sheet data"
+      }), {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
+    }
+
+    const data = await resp.json();
+    if (!data.values || data.values.length < 2) {
+      return new Response(JSON.stringify({
+        valid: false,
+        success: false,
+        message: "No credentials data found"
+      }), {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
+    }
+
+    // 7. 驗證使用者
+    const hdrs = data.values[0].map((h) => h.toLowerCase().trim());
+    const lnIdx = hdrs.indexOf("login name");
+    const pwIdx = hdrs.indexOf("password");
+    if (lnIdx < 0 || pwIdx < 0) {
+      return new Response(JSON.stringify({
+        valid: false,
+        success: false,
+        message: "Invalid sheet format"
+      }), {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
+    }
+
+    for (let i = 1; i < data.values.length; i++) {
+      const row = data.values[i];
+      if (row[lnIdx]?.trim() === loginName && row[pwIdx]?.trim() === password) {
+        return new Response(JSON.stringify({
+          valid: true,
+          success: true,
+          user: {
+            username: loginName,
+            loginTime: new Date().toISOString(),
+            displayName: loginName,
+            role: "user"
+          }
+        }), {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json"
+          }
+        });
       }
     }
 
-    // Login failed
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: 'Invalid username or password' 
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 401,
-      },
-    )
-
-  } catch (error) {
-    console.error('Login validation error:', error)
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: 'Internal server error' 
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      },
-    )
+    return new Response(JSON.stringify({
+      valid: false,
+      success: false,
+      message: "Wrong Login Name or Password."
+    }), {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json"
+      }
+    });
+  } catch (e) {
+    console.error("Unhandled error:", e);
+    return new Response(JSON.stringify({
+      error: "Internal server error"
+    }), {
+      status: 500,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json"
+      }
+    });
   }
-})
+});
