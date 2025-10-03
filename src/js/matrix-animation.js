@@ -8,12 +8,19 @@ class MatrixAnimation {
         // Matrix characters - binary digits (0s and 1s) to match reference image
         this.characters = ['0', '1'];
         
+        // Performance optimization variables
+        this.performanceMode = false;
+        this.lastFrameTime = 0;
+        this.targetFrameInterval = 33; // ~30fps for performance
+        this.animationSpeed = 1;
+        
         this.init();
     }
     
     init() {
         this.setupColumns();
         this.start();
+        this.setupInputListeners();
         
         // Handle resize
         window.addEventListener('resize', () => {
@@ -28,6 +35,41 @@ class MatrixAnimation {
                 this.start();
             }
         });
+    }
+    
+    setupInputListeners() {
+        // Wait for DOM to be fully loaded
+        const attachListeners = () => {
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+            
+            const handleFocus = () => {
+                this.performanceMode = true;
+                this.animationSpeed = 0.15; // Slow down to 15% speed during input
+            };
+            
+            const handleBlur = () => {
+                this.performanceMode = false;
+                this.animationSpeed = 1; // Resume normal speed
+            };
+            
+            if (usernameInput) {
+                usernameInput.addEventListener('focus', handleFocus);
+                usernameInput.addEventListener('blur', handleBlur);
+            }
+            
+            if (passwordInput) {
+                passwordInput.addEventListener('focus', handleFocus);
+                passwordInput.addEventListener('blur', handleBlur);
+            }
+        };
+        
+        // Try to attach immediately or wait for DOM ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', attachListeners);
+        } else {
+            attachListeners();
+        }
     }
     
     setupColumns() {
@@ -73,17 +115,19 @@ class MatrixAnimation {
         const maxChars = Math.ceil(window.innerHeight / 16) + 20; // More characters for better effect
         column.chars = [];
         
-        // Create fewer characters initially, they'll fall from top
-        const initialChars = Math.floor(Math.random() * 20) + 10;
+        // Create fewer characters initially (80% of original), they'll fall from top
+        const initialChars = Math.floor(Math.random() * 16) + 8;
         
         for (let i = 0; i < initialChars; i++) {
             const char = document.createElement('span');
             char.className = 'matrix-char';
             char.textContent = this.getRandomChar();
             
-            // Position characters vertically with some spacing
+            // Position characters vertically with some spacing using transform for GPU acceleration
             char.style.position = 'absolute';
-            char.style.top = (i * 16 - Math.random() * window.innerHeight) + 'px';
+            const initialY = i * 16 - Math.random() * window.innerHeight;
+            char.setAttribute('data-y', initialY);
+            char.style.transform = `translateY(${initialY}px)`;
             char.style.left = '0px';
             
             // Add brightness variation to match reference image
@@ -120,32 +164,41 @@ class MatrixAnimation {
         }
     }
     
-    animate() {
+    animate(currentTime) {
         if (!this.isRunning) return;
         
-        const currentTime = Date.now();
+        // Throttle to ~30fps for better performance
+        if (currentTime - this.lastFrameTime < this.targetFrameInterval) {
+            this.animationId = requestAnimationFrame((time) => this.animate(time));
+            return;
+        }
+        
+        this.lastFrameTime = currentTime;
         
         this.columns.forEach(column => {
-            if (currentTime - column.lastUpdate > 100 / column.speed) {
+            if (currentTime - column.lastUpdate > 100 / (column.speed * this.animationSpeed)) {
                 this.updateColumn(column);
                 column.lastUpdate = currentTime;
             }
         });
         
-        this.animationId = requestAnimationFrame(() => this.animate());
+        this.animationId = requestAnimationFrame((time) => this.animate(time));
     }
     
     updateColumn(column) {
-        // Move all characters down
+        // Move all characters down using transform for GPU acceleration
         column.chars.forEach((char, index) => {
-            const currentTop = parseInt(char.style.top) || 0;
-            const newTop = currentTop + column.speed;
+            const currentY = parseFloat(char.getAttribute('data-y')) || 0;
+            const newY = currentY + (column.speed * this.animationSpeed);
             
-            char.style.top = newTop + 'px';
+            char.setAttribute('data-y', newY);
+            char.style.transform = `translateY(${newY}px)`;
             
             // If character is off screen, reset to top with new character
-            if (newTop > window.innerHeight + 20) {
-                char.style.top = -Math.random() * 100 + 'px';
+            if (newY > window.innerHeight + 20) {
+                const resetY = -Math.random() * 100;
+                char.setAttribute('data-y', resetY);
+                char.style.transform = `translateY(${resetY}px)`;
                 char.textContent = this.getRandomChar();
                 
                 // Reassign brightness
@@ -162,8 +215,8 @@ class MatrixAnimation {
                 }
             }
             
-            // Randomly change some characters while falling
-            if (Math.random() > 0.99) {
+            // Randomly change some characters while falling (reduced frequency)
+            if (Math.random() > 0.995) {
                 char.textContent = this.getRandomChar();
             }
         });

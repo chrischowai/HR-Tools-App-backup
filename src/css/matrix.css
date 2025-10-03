@@ -35,6 +35,7 @@
     white-space: nowrap;
     overflow: visible;
     z-index: 2;
+    contain: layout style;
 }
 
 /* Matrix Character */
@@ -44,11 +45,14 @@
     text-shadow: 0 0 3px var(--matrix-green);
     opacity: 1;
     animation: matrix-fade 4s linear infinite;
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
 }
 
 .matrix-char.bright {
     color: var(--matrix-light-green);
-    text-shadow: 0 0 6px var(--matrix-light-green), 0 0 12px var(--matrix-green);
+    text-shadow: 0 0 8px var(--matrix-light-green);
     opacity: 1;
 }
 
@@ -76,22 +80,20 @@
     0% {
         opacity: 1;
         color: var(--matrix-light-green);
-        text-shadow: 0 0 8px var(--matrix-light-green);
+        text-shadow: 0 0 6px var(--matrix-light-green);
     }
     25% {
         opacity: 0.9;
         color: var(--matrix-green);
-        text-shadow: 0 0 4px var(--matrix-green);
+        text-shadow: 0 0 3px var(--matrix-green);
     }
     75% {
         opacity: 0.4;
         color: var(--matrix-dark-green);
-        text-shadow: 0 0 2px var(--matrix-dark-green);
     }
     100% {
         opacity: 0.1;
         color: var(--matrix-darker-green);
-        text-shadow: none;
     }
 }
 
